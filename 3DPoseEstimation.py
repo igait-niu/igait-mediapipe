@@ -357,6 +357,15 @@ def main():
     input_name = os.path.splitext(os.path.basename(args.input))[0]
     suffix = "_skeleton" if args.skeleton_only else "_pose"
     output_video_path = os.path.join(output_dir, f"{input_name}{suffix}.mp4")
+
+    print(f"Input Video: {args.input}")
+    print(f"Output Video: {output_video_path}")
+    print(f"Output Directory: {output_dir}")
+    print(f"Using GPU: {'Yes' if not args.no_gpu else 'No'}")
+    print(f"Pose Smoothing: {'Enabled' if not args.no_smooth else 'Disabled'}")
+    print(f"Save Data for ML Training: {'Yes' if args.save_data else 'No'}")
+    print(f"HIPAA-Compliant Mode: {'Yes' if args.skeleton_only else 'No'}")
+    print("Starting processing...")
     
     processor = PoseProcessor(use_gpu=not args.no_gpu, save_data=args.save_data, skeleton_only=args.skeleton_only)
     processor.smooth_poses = not args.no_smooth

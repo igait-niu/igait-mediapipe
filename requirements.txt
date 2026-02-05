@@ -1,0 +1,4 @@
+mediapipe >= 0.10.13
+opencv-python >= 4.13
+numpy >= 2.4
+torch >= 2.10
