@@ -1,0 +1,55 @@
+#!/bin/bash
+#PBS -N ConvertPatientVideosTo3DPose
+#PBS -j oe
+#PBS -l select=1:ncpus=16:mpiprocs=1:ngpus=1:mem=64gb
+#PBS -l walltime=00:15:00
+#PBS -M z1989635@students.niu.edu
+#PBS -m abe
+
+PROJECT_DIRECTORY=/lstr/sahara/zwlab/sp/PoseEstimation
+PYTHON_VENV_DIR="$PROJECT_DIRECTORY/pose_env/bin/activate"
+INPUT_DIR="$PROJECT_DIRECTORY/input"
+POSE_SCRIPT="$PROJECT_DIRECTORY/3DPoseEstimation.py"
+PYTHON="python3.9"
+
+echo "-------------------------------------------"
+echo "Job ID: $PBS_JOBID"
+echo "Working directory: $PROJECT_DIRECTORY"
+echo "Start time: $(date)"
+echo "-------------------------------------------"
+
+cd "$PROJECT_DIRECTORY" || { echo "Failed to enter project directory"; exit 1; }
+source "$PYTHON_VENV_DIR"
+
+# ------------------------------------------
+# Run Pose Estimation on all patient files
+# ------------------------------------------
+for video in "$INPUT_DIR"/*.MOV "$INPUT_DIR"/*.mp4 "$INPUT_DIR"/*.mov; do
+    [ -e "$video" ] || continue
+
+    filename=$(basename "$video")
+
+    # extract prefix before first underscore
+    prefix=${filename%%_*}
+
+    # Determine label
+    if [[ "$prefix" =~ ^1[0-9]{2}$ ]]; then
+        label="neurotypical"
+    elif [[ "$prefix" =~ ^2[0-9]{2}$ ]]; then
+        label="neurodivergent"
+    else
+        echo "Skipping $filename (unrecognized prefix: $prefix)"
+        continue
+    fi
+
+    echo "[$(date)] Processing: $filename → Label: $label"
+
+    # Run pose estimation
+    $PYTHON "$POSE_SCRIPT" "$video" --save-data --label "$label"
+
+    echo "Finished processing $filename"
+    echo "-------------------------------------------"
+done
+
+echo "All videos processed."
+echo "End time: $(date)"
