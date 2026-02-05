@@ -39,14 +39,14 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 python3.9 3DPoseEstimation.py input_video.mp4
 ```
 
-Output is saved to `output/<input_name>_pose.mp4` by default.
+Output is saved to the `output/` directory by default.
 
 ### CLI Arguments
 
 | Argument | Description | Default |
 |---|---|---|
 | `input` | Input video file path (positional, required) | — |
-| `-o`, `--output` | Output video file path | `output/<input>_pose.mp4` |
+| `-o`, `--output` | Output directory path | `./output` |
 | `-s`, `--start` | Start time in seconds | `0` |
 | `-d`, `--duration` | Duration to process in seconds | Full video |
 | `--batch-size` | Frame batch size for processing | `16` |
@@ -76,10 +76,10 @@ HIPAA-compliant skeleton-only output:
 python3.9 3DPoseEstimation.py input_video.mp4 --skeleton-only --save-data --label "neurodivergent"
 ```
 
-Custom output path with CPU processing:
+Custom output directory with CPU processing:
 
 ```bash
-python3.9 3DPoseEstimation.py input_video.mp4 -o results/output.mp4 --no-gpu
+python3.9 3DPoseEstimation.py input_video.mp4 -o results/ --no-gpu
 ```
 
 ## HPC Batch Processing (NIU)
@@ -111,11 +111,11 @@ The PBS script requests 1 GPU, 16 CPUs, and 64 GB of memory with a 15-minute wal
 ## Output
 
 ```
-output/
-├── <video_name>_pose.mp4          # Video with pose overlay
-├── <video_name>_skeleton.mp4      # Skeleton-only video (if --skeleton-only)
-└── training_data/                 # ML data (if --save-data)
-    ├── <video_name>_landmarks.json
+<output_dir>/                          # Default: ./output, or -o <path>
+├── <video_name>_pose.mp4             # Video with pose overlay
+├── <video_name>_skeleton.mp4         # Skeleton-only video (if --skeleton-only)
+└── training_data/                    # ML data (if --save-data)
+    └── <video_name>_landmarks.json
 ```
 
 ### Training Data Format

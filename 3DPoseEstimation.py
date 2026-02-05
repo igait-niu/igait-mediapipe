@@ -38,6 +38,7 @@ class PoseProcessor:
         else:
             raise ImportError("MediaPipe is required")
         
+        self.output_dir = "output"
         self.smooth_poses = True
         self.pose_history_3d = deque(maxlen=5)
         self.frame_times = []
@@ -307,8 +308,8 @@ class PoseProcessor:
 
         import json
 
-        # Create data output directory
-        data_dir = os.path.join("output", "training_data")
+        # Create data output directory within the output dir
+        data_dir = os.path.join(self.output_dir, "training_data")
         os.makedirs(data_dir, exist_ok=True)
 
         # Base filename
@@ -332,7 +333,7 @@ class PoseProcessor:
 def main():
     parser = argparse.ArgumentParser(description='GPU-Accelerated 3D Pose Estimation')
     parser.add_argument('input', help='Input video file path')
-    parser.add_argument('-o', '--output', help='Output video file path')
+    parser.add_argument('-o', '--output', help='Output directory path (default: ./output)')
     parser.add_argument('-s', '--start', type=float, default=0, help='Start time in seconds')
     parser.add_argument('-d', '--duration', type=float, help='Duration to process in seconds')
     parser.add_argument('--batch-size', type=int, default=16, help='GPU batch size')
@@ -349,26 +350,26 @@ def main():
         print(f"Error: Input file does not exist: {args.input}")
         return
     
-    if args.output is None:
-        # Create output directory if it doesn't exist
-        output_dir = "output"
-        os.makedirs(output_dir, exist_ok=True)
-        
-        input_name = os.path.splitext(os.path.basename(args.input))[0]
-        suffix = "_skeleton" if args.skeleton_only else "_pose"
-        args.output = os.path.join(output_dir, f"{input_name}{suffix}.mp4")
+    # Resolve output directory
+    output_dir = args.output if args.output else "output"
+    os.makedirs(output_dir, exist_ok=True)
+
+    input_name = os.path.splitext(os.path.basename(args.input))[0]
+    suffix = "_skeleton" if args.skeleton_only else "_pose"
+    output_video_path = os.path.join(output_dir, f"{input_name}{suffix}.mp4")
     
     processor = PoseProcessor(use_gpu=not args.no_gpu, save_data=args.save_data, skeleton_only=args.skeleton_only)
     processor.smooth_poses = not args.no_smooth
-    
+    processor.output_dir = output_dir
+
     # Store label for data saving
     if args.save_data and args.label:
         processor.current_label = args.label
-    
+
     try:
         processor.process_video_gpu_optimized(
-            args.input, 
-            args.output,
+            args.input,
+            output_video_path,
             start_time=args.start,
             duration=args.duration,
             batch_size=args.batch_size
