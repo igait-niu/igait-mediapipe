@@ -1,11 +1,11 @@
 # iGait 3D Pose Estimation
 
-MediaPipe Holistic-based 3D pose estimation pipeline for gait analysis. Processes video files to extract 3D body, hand, and face landmarks, with optional ML-ready data export.
+MediaPipe Holistic-based pose estimation pipeline for gait analysis. Processes video files to extract body landmarks normalized to the video frame (0 to 1), with optional hand and face landmark processing and ML-ready data export.
 
 ## Features
 
-- 3D landmark extraction using MediaPipe Holistic (no 2D-to-3D lifting required)
-- 543 landmarks per frame: 33 body + 21 per hand + 468 face
+- Landmark extraction using MediaPipe Holistic with coordinates normalized to the video frame (0 to 1)
+- 33 body pose landmarks by default; optional hand (21 per hand) and face (468) landmarks
 - GPU-accelerated processing with optional CPU fallback
 - HIPAA-compliant skeleton-only output mode (strips original video)
 - Temporal pose smoothing
@@ -55,6 +55,8 @@ Output is saved to the `output/` directory by default.
 | `--save-data` | Extract and save landmark data for ML training | Disabled |
 | `--label` | Label for this video (used with `--save-data`) | `"unlabeled"` |
 | `--skeleton-only` | HIPAA-compliant mode: output skeleton overlay on black background, no original video content | Disabled |
+| `--enable-hands` | Enable hand landmark processing (21 landmarks per hand) | Disabled |
+| `--enable-face` | Enable face landmark processing (468 landmarks) | Disabled |
 
 ### Examples
 
@@ -74,6 +76,12 @@ HIPAA-compliant skeleton-only output:
 
 ```bash
 python3.9 3DPoseEstimation.py input_video.mp4 --skeleton-only --save-data --label "neurodivergent"
+```
+
+Enable hand and face landmarks:
+
+```bash
+python3.9 3DPoseEstimation.py input_video.mp4 --enable-hands --enable-face
 ```
 
 Custom output directory with CPU processing:
@@ -126,6 +134,6 @@ When `--save-data` is enabled, a JSON file is generated per video (`_landmarks.j
 - `total_frames` — number of processed frames
 - `label` — the assigned label string
 - `hipaa_compliant` — whether skeleton-only mode was used
-- `landmarks_data` — per-frame array with 3D coordinates for pose (33), left hand (21), right hand (21), and face (468) landmarks
+- `landmarks_data` — per-frame array with coordinates for pose (33) landmarks; left hand (21), right hand (21), and face (468) landmarks are included only when enabled via `--enable-hands` / `--enable-face`
 
-Each landmark provides 3 coordinates (x, y, z). Missing landmarks are stored as `null`.
+Each landmark provides 3 coordinates: x and y normalized to the video frame (0 to 1), and z representing relative depth. Disabled or undetected landmarks are stored as `null`.

@@ -21,12 +21,14 @@ except ImportError:
     sys.exit(1)
 
 class PoseProcessor:
-    def __init__(self, output_width=1920, output_height=1080, use_gpu=True, save_data=False, skeleton_only=False):
+    def __init__(self, output_width=1920, output_height=1080, use_gpu=True, save_data=False, skeleton_only=False, enable_hands=False, enable_face=False):
         self.output_width = output_width
         self.output_height = output_height
         self.use_gpu = use_gpu and TORCH_AVAILABLE and torch.cuda.is_available()
         self.save_data = save_data
         self.skeleton_only = skeleton_only
+        self.enable_hands = enable_hands
+        self.enable_face = enable_face
         
         if self.use_gpu:
             self.device = torch.device('cuda')
@@ -56,7 +58,7 @@ class PoseProcessor:
             static_image_mode=False,
             model_complexity=1,
             enable_segmentation=False,
-            refine_face_landmarks=True,
+            refine_face_landmarks=self.enable_face,
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5
         )
@@ -106,27 +108,28 @@ class PoseProcessor:
         if results.pose_landmarks:
             pose_3d = []
             for landmark in results.pose_landmarks.landmark:
-                pose_3d.append([landmark.x - 0.5, -(landmark.y - 0.5), landmark.z])
+                pose_3d.append([landmark.x, landmark.y, landmark.z])
             landmarks_3d['pose'] = np.array(pose_3d)
         
-        if results.left_hand_landmarks:
-            left_hand_3d = []
-            for landmark in results.left_hand_landmarks.landmark:
-                left_hand_3d.append([landmark.x - 0.5, -(landmark.y - 0.5), landmark.z])
-            landmarks_3d['left_hand'] = np.array(left_hand_3d)
-        
-        if results.right_hand_landmarks:
-            right_hand_3d = []
-            for landmark in results.right_hand_landmarks.landmark:
-                right_hand_3d.append([landmark.x - 0.5, -(landmark.y - 0.5), landmark.z])
-            landmarks_3d['right_hand'] = np.array(right_hand_3d)
-        
-        # Extract face landmarks (all 468 points)
-        if results.face_landmarks:
-            face_3d = []
-            for landmark in results.face_landmarks.landmark:
-                face_3d.append([landmark.x - 0.5, -(landmark.y - 0.5), landmark.z])
-            landmarks_3d['face'] = np.array(face_3d)
+        if self.enable_hands:
+            if results.left_hand_landmarks:
+                left_hand_3d = []
+                for landmark in results.left_hand_landmarks.landmark:
+                    left_hand_3d.append([landmark.x, landmark.y, landmark.z])
+                landmarks_3d['left_hand'] = np.array(left_hand_3d)
+
+            if results.right_hand_landmarks:
+                right_hand_3d = []
+                for landmark in results.right_hand_landmarks.landmark:
+                    right_hand_3d.append([landmark.x, landmark.y, landmark.z])
+                landmarks_3d['right_hand'] = np.array(right_hand_3d)
+
+        if self.enable_face:
+            if results.face_landmarks:
+                face_3d = []
+                for landmark in results.face_landmarks.landmark:
+                    face_3d.append([landmark.x, landmark.y, landmark.z])
+                landmarks_3d['face'] = np.array(face_3d)
         
         return landmarks_3d
     
@@ -250,20 +253,21 @@ class PoseProcessor:
                 frame, results.pose_landmarks, self.mp_holistic.POSE_CONNECTIONS,
                 landmark_drawing_spec=self.mp_drawing_styles.get_default_pose_landmarks_style())
         
-        if hasattr(results, 'left_hand_landmarks') and results.left_hand_landmarks:
-            self.mp_drawing.draw_landmarks(
-                frame, results.left_hand_landmarks, self.mp_holistic.HAND_CONNECTIONS)
-        
-        if hasattr(results, 'right_hand_landmarks') and results.right_hand_landmarks:
-            self.mp_drawing.draw_landmarks(
-                frame, results.right_hand_landmarks, self.mp_holistic.HAND_CONNECTIONS)
-        
-        # Draw face landmarks
-        if hasattr(results, 'face_landmarks') and results.face_landmarks:
-            self.mp_drawing.draw_landmarks(
-                frame, results.face_landmarks, self.mp_holistic.FACEMESH_CONTOURS,
-                landmark_drawing_spec=None,
-                connection_drawing_spec=self.mp_drawing_styles.get_default_face_mesh_contours_style())
+        if self.enable_hands:
+            if hasattr(results, 'left_hand_landmarks') and results.left_hand_landmarks:
+                self.mp_drawing.draw_landmarks(
+                    frame, results.left_hand_landmarks, self.mp_holistic.HAND_CONNECTIONS)
+
+            if hasattr(results, 'right_hand_landmarks') and results.right_hand_landmarks:
+                self.mp_drawing.draw_landmarks(
+                    frame, results.right_hand_landmarks, self.mp_holistic.HAND_CONNECTIONS)
+
+        if self.enable_face:
+            if hasattr(results, 'face_landmarks') and results.face_landmarks:
+                self.mp_drawing.draw_landmarks(
+                    frame, results.face_landmarks, self.mp_holistic.FACEMESH_CONTOURS,
+                    landmark_drawing_spec=None,
+                    connection_drawing_spec=self.mp_drawing_styles.get_default_face_mesh_contours_style())
         
         return frame
     
@@ -341,8 +345,12 @@ def main():
     parser.add_argument('--no-smooth', action='store_true', help='Disable pose smoothing')
     parser.add_argument('--save-data', action='store_true', help='Extract and save landmark data for ML training')
     parser.add_argument('--label', type=str, help='Label for this video (for ML training)')
-    parser.add_argument('--skeleton-only', action='store_true', 
+    parser.add_argument('--skeleton-only', action='store_true',
                        help='HIPAA-compliant mode: Save only skeleton overlay without original video content')
+    parser.add_argument('--enable-hands', action='store_true',
+                       help='Enable hand landmark processing (disabled by default)')
+    parser.add_argument('--enable-face', action='store_true',
+                       help='Enable face landmark processing (disabled by default)')
     
     args = parser.parse_args()
     
@@ -365,9 +373,11 @@ def main():
     print(f"Pose Smoothing: {'Enabled' if not args.no_smooth else 'Disabled'}")
     print(f"Save Data for ML Training: {'Yes' if args.save_data else 'No'}")
     print(f"HIPAA-Compliant Mode: {'Yes' if args.skeleton_only else 'No'}")
+    print(f"Hand Landmarks: {'Enabled' if args.enable_hands else 'Disabled'}")
+    print(f"Face Landmarks: {'Enabled' if args.enable_face else 'Disabled'}")
     print("Starting processing...")
     
-    processor = PoseProcessor(use_gpu=not args.no_gpu, save_data=args.save_data, skeleton_only=args.skeleton_only)
+    processor = PoseProcessor(use_gpu=not args.no_gpu, save_data=args.save_data, skeleton_only=args.skeleton_only, enable_hands=args.enable_hands, enable_face=args.enable_face)
     processor.smooth_poses = not args.no_smooth
     processor.output_dir = output_dir
 
