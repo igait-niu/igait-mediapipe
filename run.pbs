@@ -1,8 +1,8 @@
 #!/bin/bash
 #PBS -N ConvertPatientVideosTo3DPose
 #PBS -j oe
-#PBS -l select=1:ncpus=16:mpiprocs=1:ngpus=1:mem=64gb
-#PBS -l walltime=00:15:00
+#PBS -l select=1:ncpus=16:mpiprocs=1:ngpus=1:mem=32gb
+#PBS -l walltime=4:00:00
 #PBS -M z1989635@students.niu.edu
 #PBS -m abe
 
