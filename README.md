@@ -131,9 +131,18 @@ The PBS script requests 1 GPU, 16 CPUs, and 64 GB of memory with a 15-minute wal
 When `--save-data` is enabled, a JSON file is generated per video (`_landmarks.json`) containing:
 
 - `video_filename` — source video path
+- `width` — video width in pixels
+- `height` — video height in pixels
+- `fps` — video frames per second
 - `total_frames` — number of processed frames
 - `label` — the assigned label string
 - `hipaa_compliant` — whether skeleton-only mode was used
-- `landmarks_data` — per-frame array with coordinates for pose (33) landmarks; left hand (21), right hand (21), and face (468) landmarks are included only when enabled via `--enable-hands` / `--enable-face`
+- `landmarks_data` — per-frame array with `frame_number` (0-based), `timestamp_sec` (video-relative time in seconds), and coordinates for pose (33) landmarks; left hand (21), right hand (21), and face (468) landmarks are included only when enabled via `--enable-hands` / `--enable-face`
 
-Each landmark provides 3 coordinates: x and y normalized to the video frame (0 to 1), and z representing relative depth. Disabled or undetected landmarks are stored as `null`.
+Landmark coordinates use x and y normalized to the video frame (0 to 1), and z representing relative depth. Disabled or undetected landmarks are stored as `null`.
+
+| Landmark type | Format | Notes |
+|---|---|---|
+| Pose (33) | `[x, y, z, visibility]` | `visibility` is a 0–1 confidence score from MediaPipe |
+| Hand (21 per hand) | `[x, y, z]` | No confidence score available from MediaPipe |
+| Face (468) | `[x, y, z]` | No confidence score available from MediaPipe |

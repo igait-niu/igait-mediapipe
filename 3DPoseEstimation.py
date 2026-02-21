@@ -89,7 +89,7 @@ class PoseProcessor:
         
         # Store data for ML training if enabled
         if self.save_data:
-            self.store_landmark_data(landmarks_3d, frame_count=len(self.frame_times))
+            self.store_landmark_data(landmarks_3d, frame_count=len(self.frame_times) - 1)
         
         return {
             'landmarks_3d': landmarks_3d,
@@ -108,7 +108,7 @@ class PoseProcessor:
         if results.pose_landmarks:
             pose_3d = []
             for landmark in results.pose_landmarks.landmark:
-                pose_3d.append([landmark.x, landmark.y, landmark.z])
+                pose_3d.append([landmark.x, landmark.y, landmark.z, landmark.visibility])
             landmarks_3d['pose'] = np.array(pose_3d)
         
         if self.enable_hands:
@@ -162,6 +162,10 @@ class PoseProcessor:
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        self.video_fps = fps
+        self.video_width = width
+        self.video_height = height
         
         start_frame = int(start_time * fps)
         if duration:
@@ -295,7 +299,7 @@ class PoseProcessor:
         """Store landmark data for ML training"""
         frame_data = {
             'frame_number': frame_count,
-            'timestamp': time.time(),
+            'timestamp_sec': frame_count / self.video_fps,
             'pose_landmarks': landmarks_3d['pose'].tolist() if landmarks_3d['pose'] is not None else None,
             'left_hand_landmarks': landmarks_3d['left_hand'].tolist() if landmarks_3d['left_hand'] is not None else None,
             'right_hand_landmarks': landmarks_3d['right_hand'].tolist() if landmarks_3d['right_hand'] is not None else None,
@@ -324,6 +328,9 @@ class PoseProcessor:
         with open(json_path, 'w') as f:
             json.dump({
                 'video_filename': video_filename,
+                'width': self.video_width,
+                'height': self.video_height,
+                'fps': self.video_fps,
                 'total_frames': len(self.all_landmarks_data),
                 'label': label,
                 'hipaa_compliant': self.skeleton_only,
