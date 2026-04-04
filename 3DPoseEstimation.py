@@ -4,7 +4,6 @@ import numpy as np
 import time
 import os
 import argparse
-from collections import deque
 
 try:
     import torch
@@ -21,7 +20,7 @@ except ImportError:
     sys.exit(1)
 
 class PoseProcessor:
-    def __init__(self, output_width=1920, output_height=1080, use_gpu=True, save_data=False, skeleton_only=False, enable_hands=False, enable_face=False):
+    def __init__(self, output_width=1920, output_height=1080, use_gpu=True, save_data=False, skeleton_only=False, enable_hands=False, enable_face=False, smooth_overlay=False):
         self.output_width = output_width
         self.output_height = output_height
         self.use_gpu = use_gpu and TORCH_AVAILABLE and torch.cuda.is_available()
@@ -29,6 +28,7 @@ class PoseProcessor:
         self.skeleton_only = skeleton_only
         self.enable_hands = enable_hands
         self.enable_face = enable_face
+        self.smooth_overlay = smooth_overlay
         
         if self.use_gpu:
             self.device = torch.device('cuda')
@@ -42,7 +42,8 @@ class PoseProcessor:
         
         self.output_dir = "output"
         self.smooth_poses = True
-        self.pose_history_3d = deque(maxlen=5)
+        self.ema_alpha = 0.6
+        self.prev_smoothed_pose = None
         self.frame_times = []
         
         # Data storage for ML training
@@ -57,6 +58,7 @@ class PoseProcessor:
         self.holistic = self.mp_holistic.Holistic(
             static_image_mode=False,
             model_complexity=1,
+            smooth_landmarks=self.smooth_overlay,
             enable_segmentation=False,
             refine_face_landmarks=self.enable_face,
             min_detection_confidence=0.5,
@@ -134,19 +136,16 @@ class PoseProcessor:
         return landmarks_3d
     
     def smooth_landmarks(self, new_landmarks):
-        if len(self.pose_history_3d) == 0:
-            self.pose_history_3d.append(new_landmarks)
-            return new_landmarks
-        
         smoothed = new_landmarks.copy()
-        
+
         if new_landmarks['pose'] is not None:
-            self.pose_history_3d.append(new_landmarks)
-            if len(self.pose_history_3d) > 1:
-                pose_history = [h['pose'] for h in self.pose_history_3d if h['pose'] is not None]
-                if pose_history:
-                    smoothed['pose'] = np.mean(pose_history, axis=0)
-        
+            if self.prev_smoothed_pose is None:
+                self.prev_smoothed_pose = new_landmarks['pose']
+            else:
+                self.prev_smoothed_pose = (self.ema_alpha * new_landmarks['pose']
+                                           + (1 - self.ema_alpha) * self.prev_smoothed_pose)
+            smoothed['pose'] = self.prev_smoothed_pose
+
         return smoothed
     
     def create_blank_frame(self, width, height):
@@ -354,6 +353,8 @@ def main():
     parser.add_argument('--label', type=str, help='Label for this video (for ML training)')
     parser.add_argument('--skeleton-only', action='store_true',
                        help='HIPAA-compliant mode: Save only skeleton overlay without original video content')
+    parser.add_argument('--smooth-overlay', action='store_true',
+                       help='Enable MediaPipe temporal smoothing on the visual overlay (may cause lag during fast motion)')
     parser.add_argument('--enable-hands', action='store_true',
                        help='Enable hand landmark processing (disabled by default)')
     parser.add_argument('--enable-face', action='store_true',
@@ -378,13 +379,14 @@ def main():
     print(f"Output Directory: {output_dir}")
     print(f"Using GPU: {'Yes' if not args.no_gpu else 'No'}")
     print(f"Pose Smoothing: {'Enabled' if not args.no_smooth else 'Disabled'}")
+    print(f"Overlay Smoothing: {'Enabled' if args.smooth_overlay else 'Disabled'}")
     print(f"Save Data for ML Training: {'Yes' if args.save_data else 'No'}")
     print(f"HIPAA-Compliant Mode: {'Yes' if args.skeleton_only else 'No'}")
     print(f"Hand Landmarks: {'Enabled' if args.enable_hands else 'Disabled'}")
     print(f"Face Landmarks: {'Enabled' if args.enable_face else 'Disabled'}")
     print("Starting processing...")
     
-    processor = PoseProcessor(use_gpu=not args.no_gpu, save_data=args.save_data, skeleton_only=args.skeleton_only, enable_hands=args.enable_hands, enable_face=args.enable_face)
+    processor = PoseProcessor(use_gpu=not args.no_gpu, save_data=args.save_data, skeleton_only=args.skeleton_only, enable_hands=args.enable_hands, enable_face=args.enable_face, smooth_overlay=args.smooth_overlay)
     processor.smooth_poses = not args.no_smooth
     processor.output_dir = output_dir
 
